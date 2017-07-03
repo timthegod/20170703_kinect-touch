@@ -246,7 +246,7 @@ int main(int argc, char** argv)
     createTrackbar("yMin", windowName, &yMin, 480);
     createTrackbar("yMax", windowName, &yMax, 480);
     for (unsigned int i=0; i<nBackgroundTrain; i++) {
-        depth.data = (void*)mDepthFrame.getData();
+        depth.data = (uchar*)mDepthFrame.getData();
         buffer[i] = depth;
     }
 
@@ -287,7 +287,7 @@ int main(int argc, char** argv)
             }
         }
 
-        depth.data = (void*)mDepthFrame.getData();
+        depth.data = (uchar*)mDepthFrame.getData();
         foreground = background - depth;
         touch = (foreground > touchDepthMin) & (foreground < touchDepthMax);
         Rect roi(xMin, yMin, xMax - xMin, yMax - yMin);
