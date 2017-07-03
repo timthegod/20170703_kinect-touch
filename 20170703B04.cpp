@@ -109,8 +109,52 @@ void findConvexityDefects(vector<Point>& contour, vector<int>& hull, vector<Conv
     }
 }
 
+void average(vector<Mat1s>& frames, Mat1s& mean) {
+    Mat1d acc(mean.size());
+    Mat1d frame(mean.size());
+
+    for (unsigned int i=0; i<frames.size(); i++) {
+        frames[i].convertTo(frame, CV_64FC1);
+        acc = acc + frame;
+    }
+
+    acc = acc / frames.size();
+
+    acc.convertTo(mean, CV_16SC1);
+}
+
 int main(int argc, char** argv)
 {
+    const unsigned int nBackgroundTrain = 30;
+    const unsigned short touchDepthMin = 10;
+    const unsigned short touchDepthMax = 20;
+    const unsigned int touchMinArea = 50;
+
+    const double debugFrameMaxDepth = 4000; // maximal distance (in millimeters) for 8 bit debug depth frame quantization
+    const char* windowName = "Debug";
+    const Scalar debugColor0(0,0,128);
+    const Scalar debugColor1(255,0,0);
+    const Scalar debugColor2(255,255,255);
+
+    int xMin = 110;
+    int xMax = 560;
+    int yMin = 120;
+    int yMax = 320;
+
+    Mat1s depth(480, 640); // 16 bit depth (in millimeters)
+    Mat1b depth8(480, 640); // 8 bit depth
+    Mat3b rgb(480, 640); // 8 bit depth
+
+    Mat3b debug(480, 640); // debug visualization
+
+    Mat1s foreground(640, 480);
+    Mat1b foreground8(640, 480);
+
+    Mat1b touch(640, 480); // touch mask
+
+    Mat1s background(480, 640);
+    vector<Mat1s> buffer(nBackgroundTrain);
+
     //Initial OpenNI
     if (OpenNI::initialize() != STATUS_OK) {
         cerr << "OpenNI Initial Error: " << OpenNI::getExtendedError() << endl;
@@ -195,6 +239,18 @@ int main(int argc, char** argv)
         []() { cout << "Press Button 2" << endl; }));
 
     int keyboardKeynum = 0;
+
+    namedWindow(windowName);
+    createTrackbar("xMin", windowName, &xMin, 640);
+    createTrackbar("xMax", windowName, &xMax, 640);
+    createTrackbar("yMin", windowName, &yMin, 480);
+    createTrackbar("yMax", windowName, &yMax, 480);
+    for (unsigned int i=0; i<nBackgroundTrain; i++) {
+        depth.data = (void*)mDepthFrame.getData();
+        buffer[i] = depth;
+    }
+
+    average(buffer, background);
     while (keyboardKeynum != 27 && keyboardKeynum != 'q')
     {
         //get depth frame
@@ -230,6 +286,33 @@ int main(int argc, char** argv)
                 for (auto itButton = vButtons.begin(); itButton != vButtons.end(); ++itButton) (*itButton)->Draw(FusionShow);
             }
         }
+
+        depth.data = (void*)mDepthFrame.getData();
+        foreground = background - depth;
+        touch = (foreground > touchDepthMin) & (foreground < touchDepthMax);
+        Rect roi(xMin, yMin, xMax - xMin, yMax - yMin);
+        Mat touchRoi = touch(roi);
+
+        vector< vector<Point2i> > contours;
+        vector<Point2f> touchPoints;
+        findContours(touchRoi, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, Point2i(xMin, yMin));
+        for (unsigned int i=0; i<contours.size(); i++) {
+            Mat contourMat(contours[i]);
+            // find touch points by area thresholding
+            if ( contourArea(contourMat) > touchMinArea ) {
+                Scalar center = mean(contourMat);
+                Point2i touchPoint(center[0], center[1]);
+                touchPoints.push_back(touchPoint);
+            }
+        }
+        depth.convertTo(depth8, CV_8U, 255 / debugFrameMaxDepth); // render depth to debug frame
+        cvtColor(depth8, debug, CV_GRAY2BGR);
+        debug.setTo(debugColor0, touch);  // touch mask
+        rectangle(debug, roi, debugColor1, 2); // surface boundaries
+        for (unsigned int i=0; i<touchPoints.size(); i++) { // touch points
+            circle(debug, touchPoints[i], 5, debugColor2, CV_FILLED);
+        }
+        imshow(windowName, debug);
         //將原始畫面傳換成比較好分析膚色的畫面
         cv::cvtColor(colorShow, intermideate, CV_BGR2YCrCb);
         cv::inRange(intermideate, Scalar(0, 137, 77), Scalar(256, 177, 127), skinColor);
