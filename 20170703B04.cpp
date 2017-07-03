@@ -112,7 +112,7 @@ void findConvexityDefects(vector<Point>& contour, vector<int>& hull, vector<Conv
 void average(vector<Mat1s>& frames, Mat1s& mean) {
     Mat1d acc(mean.size());
     Mat1d frame(mean.size());
-
+    acc = 0.0;
     for (unsigned int i=0; i<frames.size(); i++) {
         frames[i].convertTo(frame, CV_64FC1);
         acc = acc + frame;
@@ -293,11 +293,11 @@ int main(int argc, char** argv)
         Rect roi(xMin, yMin, xMax - xMin, yMax - yMin);
         Mat touchRoi = touch(roi);
 
-        vector< vector<Point2i> > contours;
+        vector< vector<Point2i> > contours_any;
         vector<Point2f> touchPoints;
-        findContours(touchRoi, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, Point2i(xMin, yMin));
-        for (unsigned int i=0; i<contours.size(); i++) {
-            Mat contourMat(contours[i]);
+        findContours(touchRoi, contours_any, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, Point2i(xMin, yMin));
+        for (unsigned int i=0; i<contours_any.size(); i++) {
+            Mat contourMat(contours_any[i]);
             // find touch points by area thresholding
             if ( contourArea(contourMat) > touchMinArea ) {
                 Scalar center = mean(contourMat);
